@@ -1,0 +1,48 @@
+---
+title: "Challenge 1"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+#### Supervised machine learning
+
+Write code in R that help you answer the following questions. As in the previous challenge, we'll be working with a dataset that contains all the tweets sent by Donald Trump, Ted Cruz, Hillary Clinton, and Bernie Sanders during the 2016 primary election campaign.
+
+1. After reading a candidate, pick a candidate and create a dummy that indicates whether each tweet was sent by that candidate. We'll be trying to see if we can build a classifier to predict whether a tweet is coming from a given candidate.
+
+```{r}
+tweets <- read.csv('../datasets/candidate-tweets.csv', stringsAsFactors=F)
+
+```
+
+2. Create a training and test set, with 80% and 20%, respectively.
+
+```{r}
+
+```
+
+3. Construct the DFM. You may want to experiment with different preprocessing techniques until you achieve better performance.
+
+```{r}
+
+```
+
+4. Now run the classifier. Then, compute the accuracy.
+
+```{r}
+
+```
+
+5. Identify the features that better predict that tweets were sent by this candidate. What do you learn?
+```{r}
+
+```
+
+BONUS. Train wordscores in the Congress dataset we just used and then try to see how well it predicts the ideology of the presidential candidates
+
+```{r}
+
+```
+
+

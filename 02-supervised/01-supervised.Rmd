@@ -1,0 +1,141 @@
+---
+title: "Supervised machine learning"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+### Supervised machine learning
+
+We'll be working again with tweets about the 2014 EP elections in the UK. Now we will be using the `polite` variable, which indicates whether each tweet was hand-coded as being __polite__ (a tweet that adheres to politeness standards, i.e. it is written in a well-mannered and
+non-offensive way) or __impolite__ (an ill-mannered, disrespectful tweet that may contain offensive language).
+
+The source of the dataset is a working paper co-authored with Yannis Theocharis, Zoltan Fazekas, and Sebastian Popa. The link is [here](http://pablobarbera.com/static/Theocharis_Barbera_Fazekas_Popa_APSA2015.pdf). Our goal was to understand to what extent candidates are not engaging voters on Twitter because they're exposed to mostly impolite messages.
+
+Let's start by reading the dataset and creating a dummy variable indicating whether each tweet is impolite.
+
+```{r}
+library(quanteda)
+tweets <- read.csv("../datasets/EP-elections-tweets.csv", stringsAsFactors=F)
+tweets$impolite <- ifelse(tweets$polite=="polite", 0, 1)
+```
+
+We'll do some cleaning as well -- substituting handles with @, and removing all URLs. Why? We want to provent overfitting.
+```{r}
+tweets$text <- gsub('@[0-9_A-Za-z]+', '@', tweets$text)
+tweets$text <- gsub('"(http.*) |(http.*)$|\n', "", tweets$text)
+```
+
+Create the dfm and trim it so that only tokens that appear in 2 or more tweets are included.
+```{r}
+twcorpus <- corpus(tweets$text)
+twdfm <- dfm(twcorpus, ignoredFeatures=c(
+  stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can"))
+twdfm <- trim(twdfm, minDoc = 2)
+```
+
+And split the dataset into training and test set. We'll go with 80% training and 20% set. Note the use of a random seed to make sure our results are replicable.
+```{r}
+set.seed(123)
+training <- sample(1:nrow(tweets), floor(.80 * nrow(tweets)))
+test <- (1:nrow(tweets))[1:nrow(tweets) %in% training == FALSE]
+```
+
+Our first step is to train the classifier using cross-validation. There are many packages in R to run machine learning models. For regularized regression, glmnet is in my opinion the best. It's much faster than caret or mlr (in my experience at least), and it has cross-validation already built-in, so we don't need to code it from scratch.
+
+```{r}
+library(glmnet)
+require(doMC)
+registerDoMC(cores=3)
+ridge <- cv.glmnet(twdfm[training,], tweets$impolite[training], 
+	family="binomial", alpha=0, nfolds=5, parallel=TRUE,
+	type.measure="deviance")
+plot(ridge)
+```
+
+We can now compute the performance metrics on the test set.
+```{r}
+## function to compute accuracy
+accuracy <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(sum(diag(tab))/sum(tab))
+}
+# function to compute precision
+precision <- function(ypred, y){
+	tab <- table(ypred, y)
+	return((tab[2,2])/(tab[2,1]+tab[2,2]))
+}
+# function to compute recall
+recall <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(tab[2,2]/(tab[1,2]+tab[2,2]))
+}
+# computing predicted values
+preds <- predict(ridge, twdfm[test,], type="response") > mean(tweets$impolite[test])
+# confusion matrix
+table(preds, tweets$impolite[test])
+# performance metrics
+accuracy(preds, tweets$impolite[test])
+precision(preds, tweets$impolite[test])
+recall(preds, tweets$impolite[test])
+```
+
+Something that is often very useful is to look at the actual estiamted coefficients and see which of these have the highest or lowest values:
+
+```{r}
+# from the different values of lambda, let's pick the best one
+best.lambda <- which(ridge$lambda==ridge$lambda.min)
+beta <- ridge$glmnet.fit$beta[,best.lambda]
+head(beta)
+
+## identifying predictive features
+df <- data.frame(coef = as.numeric(beta),
+				word = names(beta), stringsAsFactors=F)
+
+df <- df[order(df$coef),]
+head(df[,c("coef", "word")], n=30)
+paste(df$word[1:30], collapse=", ")
+df <- df[order(df$coef, decreasing=TRUE),]
+head(df[,c("coef", "word")], n=30)
+paste(df$word[1:30], collapse=", ")
+```
+
+### A special case: wordscores
+
+Let's check an example of wordscores. Here we have tweets from a random sample of 100 Members of the U.S. Congress, as well as their ideal points based on roll-call votes. Can we replicate the ideal points only using the text of their tweets?
+
+```{r}
+cong <- read.csv("../datasets/congress-tweets.csv", stringsAsFactors=F)
+# creating the corpus and dfm objects
+ccorpus <- corpus(cong$text)
+docnames(ccorpus) <- cong$screen_name
+cdfm <- dfm(ccorpus, ignoredFeatures=c(stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can"))
+cdfm <- trim(cdfm, minDoc = 2)
+# running wordscores
+ws <- textmodel(cdfm, cong$idealPoint, model="wordscores", smooth=.5)
+ws
+# let's look at the most discriminant words
+sw <- sort(ws@Sw)
+head(sw, n=20)
+tail(sw, n=20)
+```
+
+Now let's split the data into training and test set and see what we can learn...
+
+```{r}
+set.seed(123)
+test <- sample(1:nrow(cong), floor(.20 * nrow(cong)))
+# extracting ideal points and replacing them with missing values
+refpoints <- cong$idealPoint
+refpoints[test] <- NA
+# running wordscores
+ws <- textmodel(cdfm, refpoints, model="wordscores", smooth=.5)
+# predicted values (this will take a while...)
+preds <- predict(ws, rescaling="lbg")
+scores <- preds@textscores
+# and let's compare
+plot(scores$textscore_lbg[test], cong$idealPoint[test])
+cor(scores$textscore_lbg[test], cong$idealPoint[test])
+```
+
+
