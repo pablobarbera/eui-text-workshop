@@ -1,0 +1,42 @@
+---
+title: "Challenge 1"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+#### Unsupervised machine learning
+
+Write code in R that help you answer the following questions. We're going to be working with a dataset that contains the abstract of a sample of theses defended at the SPS department at the EUI. We're going to try to see what we can learn from this corpus. 
+
+1. First, read the dataset and create the DFM object.
+
+```{r}
+theses <- read.csv('../datasets/eui-theses-data.csv', stringsAsFactors=F)
+theses <- theses[!is.na(theses$abstract),]
+
+
+```
+
+2. Now, estimate the topic model using a number of topics that you think is reasonable.
+```{r}
+
+```
+
+3. Look at the words associated with each topic, and a few representative documents for each topic. What do you learn?
+
+```{r}
+
+```
+
+4. Try to find a topic related to terrorism and plots its evolution over time. Has it increased in the past few years?
+
+```{r}
+
+```
+
+BONUS. Experiment with different number of topics. Which value appears to be more appropriate?
+
+```{r}
+
+```
