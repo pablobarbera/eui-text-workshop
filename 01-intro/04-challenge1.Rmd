@@ -1,0 +1,48 @@
+---
+title: "Challenge 1"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+#### Descriptive analyses of text
+
+Write code in R that help you answer the following questions. We'll be working with a dataset that contains all the tweets sent by Donald Trump, Ted Cruz, Hillary Clinton, and Bernie Sanders during the 2016 primary election campaign.
+
+1. Read the data. The name of the candidate is in the `screen_name` variable.  How many tweets has each of the candidate sent?
+
+```{r}
+tweets <- read.csv('../datasets/candidate-tweets.csv', stringsAsFactors=F)
+
+```
+
+2. How many tweets contain a hashtag? What are the most popular hashtags by candidate? Who are the most mentioned handles by candidate?
+```{r}
+
+
+```
+
+3. Pick two candidates and create a corpus object for each of them. Find the most common collocations for each. Compute their average readability scores.
+```{r}
+
+```
+
+
+4. Now create a dfm object for each candidate and look at the most frequent features for each of them. Then compute the lexical diversity.
+```{r}
+
+
+```
+
+5. Compute the average sentiment score of the tweets sent by each candidate. Which candidate sent the most positive tweets? Is that what you expected? Find the most negative and most positive tweets for each candidate.
+
+```{r}
+
+```
+
+BONUS. Create a comparison plot using a single corpus object where the name of the candidates is a document variable. Check `?plot.dfm` for clues.
+
+```{r}
+
+```
+

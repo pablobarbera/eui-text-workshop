@@ -1,0 +1,143 @@
+---
+title: "Descriptive analysis of text"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+In this module we will discuss some quick descriptive statistics of text datasets. We'll be working with the dataset of inaugural speeches of U.S. Presidents
+
+```{r}
+library(quanteda)
+tf <- textfile(file='../datasets/inaugTexts.csv', textField = 'inaugSpeech')
+inaug <- corpus(tf)
+#docnames(inaug) <- paste(inaug[['President']], inaug[["Year"]], sep=":")
+```
+
+The simplest of these is through the `summary()` method:
+
+```{r}
+summary(inaug)
+```
+
+We have already seen how to look at the most common features:
+
+```{r}
+presDfm <- dfm(inaugCorpus, ignoredFeatures = stopwords("english"), ngrams=c(1,3))
+topfeatures(presDfm)
+```
+
+Other basic statistics of any dataset:
+```{r}
+# number of documents
+ndoc(inaug)           
+# number of tokens (total words)
+ntoken(inaug)
+# number of types (unique words)
+ntype(inaug)
+# number of documents and features in DFM
+ndoc(presDfm)
+nfeature(presDfm)
+# extract feature labels and document names
+head(features(presDfm), 20)
+head(docnames(presDfm))
+```
+
+A common type of analysis to understand the content of a corpus is to extract collocations -- combinations of words that are more likely to appear together than what is expected based on their frequency distribution in the corpus as isolated words. There are different significante tests to identify whether a combination of words is a collocation or not (see the help file).
+
+```{r}
+collocations(inaug, size = 2, method = "all")
+collocations(inaug, size = 3, method = "all")
+
+tweets <- read.csv("../datasets/EP-elections-tweets.csv", stringsAsFactors=F)
+twcorpus <- corpus(tweets$text)
+collocations(twcorpus, size = 2, method = "all")
+```
+ 
+A text document can also be characterized based on its readability and lexical diversity, which capture different aspects of its complexity. There are MANY indices that compute this. Note that each of these functions is applied to a different type of object (`corpus` or `dfm`).
+
+```{r}
+# readability
+fk <- readability(inaug, "Flesch.Kincaid")
+# lexical diversity
+ld <- lexdiv(presDfm)
+
+# plot readability over time
+require(ggplot2)
+p <- ggplot(data = docvars(inaug), aes(x = Year, y = fk)) + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          axis.line = element_line(colour = "black")) +
+    geom_smooth(alpha=0.2, linetype=1, color="grey70", method = "loess", span = .34) +
+    xlab("") +
+    ylab("Flesch-Kincaid") +
+    geom_point() +
+    geom_line(alpha=0.3, size = 1) +
+    ggtitle("Text Complexity in Presidential Inaugural Addresses") + 
+    theme(plot.title = element_text(lineheight=.8, face="bold"))
+quartz(height=7, width=12)
+print(p)
+
+# plot lexical diversity over time
+require(ggplot2)
+p <- ggplot(data = docvars(inaug), aes(x = Year, y = ld)) + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          axis.line = element_line(colour = "black")) +
+    geom_smooth(alpha=0.2, linetype=1, color="grey70", method = "loess", span = .34) +
+    xlab("") +
+    ylab("Flesch-Kincaid") +
+    geom_point() +
+    geom_line(alpha=0.3, size = 1) +
+    ggtitle("Text Complexity in Presidential Inaugural Addresses") + 
+    theme(plot.title = element_text(lineheight=.8, face="bold"))
+quartz(height=7, width=12)
+print(p)
+```
+
+We can identify documents that are similar to one another based on the frequency of words, using `similarity`:
+
+```{r}
+# document similarities
+similarity(presDfm, "1985-Reagan", n=5, margin="documents")
+similarity(presDfm, c("2009-Obama" , "2013-Obama"), n=5, margin="documents", method = "cosine")
+similarity(presDfm, c("2009-Obama" , "2013-Obama"), n=5, margin="documents", method = "Hellinger")
+similarity(presDfm, c("2009-Obama" , "2013-Obama"), n=5, margin="documents", method = "eJaccard")
+```
+
+And the opposite: term similarity based on the frequency with which they appear in documents:
+```{r}
+# we'll work with the tweets DFM
+twdfm <- dfm(twcorpus, ignoredFeatures=c(
+  stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can"), ngrams=c(1,2))
+# term similarities
+sim <- similarity(twdfm, c("immigration", "eu"), margin="features", method="cosine")
+head(sim$immigration, n=20)
+head(sim$eu, n=20)
+```
+
+Each of these can be used to cluster documents:
+```{r}
+presDfm <- trim(presDfm, minCount=5, minDoc=3)
+# hierarchical clustering - get distances on normalized dfm
+presDistMat <- dist(as.matrix(weight(presDfm, "relFreq")))
+# hiarchical clustering the distance object
+presCluster <- hclust(presDistMat)
+# plot as a dendrogram
+plot(presCluster)
+```
+
+Or to cluster terms:
+
+```{r}
+# word dendrogram with tf-idf weighting
+wordDfm <- sort(weight(presDfm, "tfidf"))
+wordDfm <- t(wordDfm)[1:100,]  # because transposed
+wordDistMat <- dist(wordDfm)
+wordCluster <- hclust(wordDistMat)
+plot(wordCluster, xlab="", main="tf-idf Frequency weighting")
+```
+
+We'll see better ways to cluster documents and words in the last module of today's workshop.

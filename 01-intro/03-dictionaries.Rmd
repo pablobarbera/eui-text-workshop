@@ -1,0 +1,77 @@
+---
+title: "Dictionary methods"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+
+#### Dictionary methods
+
+A different type of keyword analysis consists on the application of dictionary methods, or lexicon-based approaches to the measurement of tone or the prediction of diferent categories related to the content of the text. 
+
+The most common application is sentiment analysis: using a dictionary of positive and negative words, we compute a sentiment score for each individual document.
+
+Let's apply this technique in the context of our running example.
+
+```{r}
+library(quanteda)
+tweets <- read.csv('../datasets/candidate-tweets.csv', stringsAsFactors=F)
+```
+
+```{r}
+# loading lexicon of positive and negative words (from Neal Caren)
+lexicon <- read.csv("../datasets/lexicon.csv", stringsAsFactors=F)
+pos.words <- lexicon$word[lexicon$polarity=="positive"]
+neg.words <- lexicon$word[lexicon$polarity=="negative"]
+# a look at a random sample of positive and negative words
+sample(pos.words, 10)
+sample(neg.words, 10)
+```
+
+As earlier today, we will convert our text to a corpus object.
+
+```{r}
+#install.packages("quanteda")
+library(quanteda)
+twcorpus <- corpus(tweets$text)
+```
+
+Now we're ready to run the sentiment analysis!
+
+```{r}
+# first we construct a dictionary object
+mydict <- dictionary(list(negative = neg.words,
+                          positive = pos.words))
+# apply it to our corpus
+sent <- dfm(twcorpus, dictionary = mydict)
+# and add it as a new variable
+tweets$score <- as.numeric(sent[,2]) - as.numeric(sent[,1])
+```
+
+```{r}
+# what is the average sentiment score?
+mean(tweets$score)
+# what is the most positive and most negative tweet?
+tweets[which.max(tweets$score),]
+tweets[which.min(tweets$score),]
+# what is the proportion of positive, neutral, and negative tweets?
+tweets$sentiment <- "neutral"
+tweets$sentiment[tweets$score<0] <- "negative"
+tweets$sentiment[tweets$score>0] <- "positive"
+table(tweets$sentiment)
+```
+
+We can also disaggregate by groups of tweets, for example according to the party they mention.
+
+```{r}
+parties <- c("labour", "ukip", "conservative", "snp")
+
+for (p in parties){
+  message(p, " -- average sentiment: ",
+      round(mean(tweets$score[grep(p, tweets$text, ignore.case=TRUE)]), 4)
+    )
+}
+
+```
+
