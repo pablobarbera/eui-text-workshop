@@ -60,7 +60,7 @@ A text document can also be characterized based on its readability and lexical d
 # readability
 fk <- readability(inaug, "Flesch.Kincaid")
 # lexical diversity
-ld <- lexdiv(presDfm)
+ld <- lexdiv(presDfm, "TTR")
 
 # plot readability over time
 require(ggplot2)
