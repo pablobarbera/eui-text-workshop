@@ -1,0 +1,246 @@
+---
+title: "Scraping data from Twitter"
+author: "Pablo Barbera"
+date: "March, 2016"
+output: html_document
+---
+
+### Scraping web data from Twitter
+
+#### Authenticating
+
+Follow these steps to create your token:
+
+1. Go to apps.twitter.com and sign in.  
+2. Click on "Create New App". You will need to have a phone number associated with your account in order to be able to create a token.  
+3. Fill name, description, and website (it can be anything, even http://www.google.com). Make sure you leave 'Callback URL' empty.
+4. Agree to user conditions.  
+5. From the "Keys and Access Tokens" tab, copy consumer key and consumer secret and paste below
+
+```{r, eval=FALSE}
+#install.packages("ROAuth")
+library(ROAuth)
+requestURL <- "https://api.twitter.com/oauth/request_token"
+accessURL <- "https://api.twitter.com/oauth/access_token"
+authURL <- "https://api.twitter.com/oauth/authorize"
+consumerKey <- "8rhE418Fd7AXgzi0XKJzmGmL5"
+consumerSecret <- "N7ZqM2sLyPCmChbuj6iSElNS0EqrXt1dcM3DOYPtm4K78ACAoe"
+
+my_oauth <- OAuthFactory$new(consumerKey=consumerKey,
+  consumerSecret=consumerSecret, requestURL=requestURL,
+  accessURL=accessURL, authURL=authURL)
+```
+
+Run the below line and go to the URL that appears on screen. Then, type the PIN into the console (RStudio sometimes doesn't show what you're typing, but it's there!)
+
+```{r, eval=FALSE}
+my_oauth$handshake(cainfo = system.file("CurlSSL", "cacert.pem", package = "RCurl"))
+```
+
+Now you can save oauth token for use in future sessions with smappR or streamR. Make sure you save it in a folder where this is the only file.
+
+```{r, eval=FALSE}
+save(my_oauth, file="credentials/twitter-token-2.Rdata")
+```
+
+#### Collecting data from Twitter's Streaming API
+
+Collecting tweets filtering by keyword:
+
+```{r}
+#install.packages("streamR")
+library(streamR)
+load("credentials/twitter-token-2.Rdata")
+filterStream(file.name="brexit-tweets.json", track="#brexit", 
+    timeout=60, oauth=my_oauth)
+```
+
+Note the options:
+- `file.name` indicates the file in your disk where the tweets will be downloaded  
+- `track` is the keyword(s) mentioned in the tweets we want to capture.
+- `timeout` is the number of seconds that the connection will remain open  
+- `oauth` is the OAuth token we are using
+
+Once it has finished, we can open it in R as a data frame with the `parseTweets` function
+```{r}
+tweets <- parseTweets("brexit-tweets.json")
+str(tweets)
+tweets[1,]
+```
+
+If we want, we could also export it to a csv file to be opened later with Excel
+```{r}
+write.csv(tweets, file="brexit-tweets.csv", row.names=FALSE)
+```
+
+And this is how we would capture tweets mentioning multiple keywords:
+```{r, eval=FALSE}
+filterStream(file.name="uk-tweets.json", 
+	track=c("#brexit", "#LeaveEU", "#StrongerIn", "#VoteLeave", "#EU", "#EURef",
+	        "referendum"),
+    tweets=60, oauth=my_oauth)
+```
+
+Note that here I choose a different option, `tweets`, which indicates how many tweets (approximately) the function should capture before we close the connection to the Twitter API.
+
+This second example shows how to collect tweets filtering by location instead. In other words, we can set a geographical box and collect only the tweets that are coming from that area.
+
+For example, imagine we want to collect tweets from the United States. The way to do it is to find two pairs of coordinates (longitude and latitude) that indicate the southwest corner AND the northeast corner. Note the reverse order: it's not (lat, long), but (long, lat).
+
+In the case of Denmark, it would be approx. (7.4, 54.3) and (14.8, 57.7). How to find these coordinates? I use: `http://itouchmap.com/latlong.html`
+
+```{r, eval=FALSE}
+filterStream(file.name="tweets_geo.json", locations=c(7.4, 54.3, 14.8, 57.7), 
+    timeout=1800, oauth=my_oauth)
+```
+
+We can do as before and open the tweets in R
+```{r}
+tweets <- parseTweets("../datasets/tweets_geo.json")
+```
+
+And use the maps library to see where most tweets are coming from. Note that there are two types of geographic information on tweets: `lat`/`lon` (from geolocated tweets) and `place_lat` and `place_lon` (from tweets with place information). We will work with whatever is available.
+```{r}
+library(maps)
+library(mapdata)
+tweets$lat <- ifelse(is.na(tweets$lat), tweets$place_lat, tweets$lat)
+tweets$lon <- ifelse(is.na(tweets$lon), tweets$place_lon, tweets$lon)
+countries <- map.where("worldHires", tweets$lon, tweets$lat)
+head(sort(table(countries), decreasing=TRUE))
+```
+
+We can also prepare a map of the exact locations of the tweets.
+
+```{r, fig.height=6, fig.width=10}
+# subset only tweets in Denmark
+tweets <- tweets[countries=="Denmark" | countries=="Denmark:Sjaelland" | countries=="Denmark:Fyn" | is.na(countries),]
+
+#if(!require("devtools")) install.packages("devtools")
+#devtools::install_github("sebastianbarfort/mapDK")
+library(mapDK)
+pointDK(tweets, point.colour="blue", map.fill="gray98", map.colour="grey20")
+
+# and only tweets in Copenhagen
+cph <- tweets[tweets$lat > 55.2 & tweets$lat<55.8 & tweets$lon>12.2 & tweets$lon<12.7,]
+pointDK(cph, sub = "koebenhavn", point.colour="blue", map.fill="gray98", map.colour="grey20")
+
+
+```
+
+
+Finally, it's also possible to collect a random sample of tweets. That's what the "sampleStream" function does:
+
+```{r}
+sampleStream(file.name="tweets_random.json", timeout=30, oauth=my_oauth)
+```
+
+Here I'm collecting 30 seconds of tweets. And once again, to open the tweets in R...
+```{r}
+tweets <- parseTweets("tweets_random.json")
+```
+
+What is the most retweeted tweet?
+```{r}
+tweets[which.max(tweets$retweet_count),]
+```
+
+What are the most popular hashtags at the moment? We'll use regular expressions to extract hashtags.
+```{r}
+library(stringr)
+ht <- str_extract_all(tweets$text, "#(\\d|\\w)+")
+ht <- unlist(ht)
+head(sort(table(ht), decreasing = TRUE))
+```
+
+How many tweets mention Justin Bieber?
+```{r}
+length(grep("bieber", tweets$text, ignore.case=TRUE))
+```
+
+
+#### Collecting data from Twitter's REST API
+
+It is possible to download recent tweets, but only up those less than 7 days old, and in some cases not all of them. We will use the `smappR` package for this (and the other functions that scrape Twitter's REST API).
+
+```{r}
+#install.packages("devtools")
+library(devtools)
+#install_github("SMAPPNYU/smappR")
+library(smappR)
+
+searchTweets(q=c("karadžić", "karadzic", "Караџић"), 
+  filename="karadzic-tweets.json",
+  n=1000, until="2016-03-25", 
+  oauth_folder="~/git/icourts-workshop/02-social-media/credentials")
+
+tweets <- parseTweets("karadzic-tweets.json")
+```
+
+What are the most popular hashtags?
+```{r}
+library(stringr)
+ht <- str_extract_all(tweets$text, "#(\\d|\\w)+")
+ht <- unlist(ht)
+head(sort(table(ht), decreasing = TRUE))
+```
+
+You can check the documentation about the options for string search [here](https://dev.twitter.com/rest/public/search).
+
+This is how you would extract information from user profiles:
+
+```{r}
+ics <- c("IntlCrimCourt", "ICJ_org", "CorteIDH", "CIDH", "ComunidadAndina", 
+         "ECHR_Press", "ICTYnews", "SpecialCourt", "EACJCourt", 
+         "EUCourtPress", "CourUEPresse", "TPRMERCOSUR", "afchpr")
+users <- getUsersBatch(screen_names=ics,
+                       oauth_folder="credentials")
+str(users)
+```
+
+Which is the IC with the most followers?
+```{r}
+users[which.max(users$followers_count),]
+users$screen_name[which.max(users$followers_count)]
+```
+
+Download up to 3,200 recent tweets from a Twitter account:
+```{r}
+getTimeline(filename="ECHR-tweets.json", screen_name="ECHR_Press", 
+    n=1000, oauth_folder="credentials")
+```
+
+What are the most common hashtags?
+```{r}
+tweets <- parseTweets("ECHR-tweets.json")
+ht <- str_extract_all(tweets$text, "#(\\d|\\w)+")
+ht <- unlist(ht)
+head(sort(table(ht), decreasing = TRUE))
+```
+
+Download friends and followers:
+```{r}
+followers <- getFollowers("ICTYnews", 
+    oauth_folder="credentials")
+```
+
+What are the most common words that followers of the International Criminal Tribunal for the Former Yugoslavia use to describe themselves on Twitter?
+```{r, fig.height=6, fig.width=6}
+# taking a random sample of 1,000 accounts
+smp <- sample(followers, 1000) 
+# extract profile descriptions
+users <- getUsersBatch(ids=smp,
+    oauth_folder="credentials")
+# create table with frequency of word use
+library(quanteda)
+tw <- corpus(users$description[users$description!=""])
+dfm <- dfm(tw, ignoredFeatures=c(stopwords("english"), stopwords("spanish"),
+                                 "t.co", "https", "rt", "rts", "http"))
+wf <- tfidf(dfm)
+# create wordcloud
+par(mar=c(0,0,0,0))
+plot(wf, rot.per=0, scale=c(3, .50), max.words=100)
+
+```
+
+
+

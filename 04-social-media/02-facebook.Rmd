@@ -1,0 +1,76 @@
+---
+title: "Scraping data from Facebook"
+author: "Pablo Barbera"
+date: "March, 30, 2016"
+output: html_document
+---
+
+### Scraping web data from Facebook
+
+To scrape data from Facebook's API, we'll use the `Rfacebook` package.
+
+```{r}
+#install.packages("Rfacebook")
+library(Rfacebook)
+```
+
+To get access to the Facebook API, you need an OAuth code. You can get yours going to the following URL: [https://developers.facebook.com/tools/explorer](https://developers.facebook.com/tools/explorer)
+
+Once you're there:  
+1. Click on "Get Access Token"  
+2. Copy the long code ("Access Token") and paste it here below, substituting the fake one I wrote:
+
+```{r,eval=FALSE}
+fb_oauth = 'YOUR_TOKEN_HERE'
+```
+
+Now try running the following line:
+```{r}
+getUsers("me", token=fb_oauth, private_info=TRUE)
+```
+
+Does it return your Facebook public information? Yes? Then we're ready to go. See also `?fbOAuth` for information on how to get a long-lived OAuth token.
+
+At the moment, the only information that can be scraped from Facebook is the content of public pages. 
+
+The following line downloads the ~200 most recent posts on the facebook page of the International Criminal Tribunal for the former Yugoslavia
+```{r}
+page <- getPage("ICTYMKSJ", token=fb_oauth, n=200) 
+```
+
+What information is available for each of these posts?
+```{r}
+page[1,]
+```
+
+Which post got more likes, more comments, and more shares?
+```{r}
+page[which.max(page$likes_count),]
+page[which.max(page$comments_count),]
+page[which.max(page$shares_count),]
+```
+
+We can also subset by date. For example, imagine we want to get all the posts from March 2016 on this Facebook page
+```{r}
+page <- getPage("ICTYMKSJ", token=fb_oauth, n=1000,
+	since='2016/03/01', until='2016/03/30')
+page[which.max(page$likes_count),]
+```
+
+And if we need to, we can also extract the specific comments from each post.
+```{r}
+post_id <- page$id[which.max(page$likes_count)]
+post <- getPost(post_id, token=fb_oauth, n.comments=1000, likes=FALSE)
+```
+
+This is how you can view those comments:
+```{r}
+comments <- post$comments
+head(comments)
+```
+
+Also, note that users can like comments! What is the comment that got the most likes?
+```{r}
+comments[which.max(comments$likes_count),]
+```
+
