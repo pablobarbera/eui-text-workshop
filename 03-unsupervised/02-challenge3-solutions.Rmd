@@ -1,0 +1,135 @@
+---
+title: "Challenge 3"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+#### Unsupervised machine learning
+
+Write code in R that help you answer the following questions. We're going to be working with a dataset that contains the abstract of a sample of theses defended at the SPS department at the EUI. We're going to try to see what we can learn from this corpus. 
+
+1. First, read the dataset and create the DFM object.
+
+```{r}
+theses <- read.csv('../datasets/eui-theses-data.csv', stringsAsFactors=F)
+theses <- theses[!is.na(theses$abstract),]
+library(quanteda)
+ctheses <- corpus(theses$abstract)
+euidfm <- dfm(ctheses, ngrams=c(1,3), ignoredFeatures=c(stopwords("english"), "rsquo"))
+
+```
+
+2. Now, estimate the topic model using a number of topics that you think is reasonable.
+```{r}
+library(topicmodels)
+# we now export to a format that we can run the topic model with
+dtm <- convert(euidfm, to="topicmodels")
+
+# estimate LDA with K topics
+K <- 50
+lda <- LDA(dtm, k = K, method = "Gibbs", 
+                control = list(verbose=25L, seed = 123, burnin = 100, iter = 500))
+```
+
+3. Look at the words associated with each topic, and a few representative documents for each topic. What do you learn?
+
+```{r}
+terms <- get_terms(lda, 15)
+terms[,1:4]
+topics <- get_topics(lda, 1)
+head(topics)
+
+```
+
+4. Try to find a topic related to terrorism and plots its evolution over time. Has it increased in the past few years?
+
+```{r}
+topic <- 42
+paste(terms[,topic], collapse=", ")
+# add probability to df
+theses$prob_topic <- lda@gamma[,topic]
+# now aggregate at the year level
+agg <- aggregate(theses$prob_topic, by=list(year=theses$date), FUN=mean)
+# and plot it
+plot(agg$year, agg$x, type="l", xlab="Year", ylab="Avg. prob. of article about topic",
+     main="Estimated proportion of articles about selected topic")
+```
+
+BONUS. Experiment with different number of topics. Which value appears to be more appropriate?
+
+```{r}
+# install.packages("cvTools")
+require(cvTools)
+cvLDA <- function(Ntopics,dtm,K=10) {
+  folds<-cvFolds(nrow(dtm),K,1)
+  perplex <- rep(NA,K)
+  llk <- rep(NA,K)
+  for(i in unique(folds$which)){
+    cat(i, " ")
+    which.test <- folds$subsets[folds$which==i]
+    which.train <- {1:nrow(dtm)}[-which.test]
+    dtm.train <- dtm[which.train,]
+    dtm.test <- dtm[which.test,]
+    lda.fit <- LDA(dtm.train, k=Ntopics, method="Gibbs",
+        control=list(verbose=50L, iter=100))
+    perplex[i] <- perplexity(lda.fit,dtm.test)
+    llk[i] <- logLik(lda.fit)
+  }
+  return(list(K=Ntopics,perplexity=perplex,logLik=llk))
+}
+```
+
+```{r}
+K <- c(20, 30, 40, 50, 60, 70, 80)
+
+results <- list()
+
+i = 1
+for (k in K){
+    cat("\n\n\n##########\n ", k, "topics", "\n")
+    res <- cvLDA(k, dtm)
+    results[[i]] <- res
+    i = i + 1
+}
+```
+
+
+```{r}
+## plot
+df <- data.frame(
+    k = rep(K, each=10),
+    perp =  unlist(lapply(results, '[[', 'perplexity')),
+    loglk = unlist(lapply(results, '[[', 'logLik')),
+    stringsAsFactors=F)
+
+min(df$perp)
+df$ratio_perp <- df$perp / max(df$perp)
+df$ratio_lk <- df$loglk / min(df$loglk)
+
+df <- data.frame(cbind(
+    aggregate(df$ratio_perp, by=list(df$k), FUN=mean),
+    aggregate(df$ratio_perp, by=list(df$k), FUN=sd)$x,
+    aggregate(df$ratio_lk, by=list(df$k), FUN=mean)$x,
+    aggregate(df$ratio_lk, by=list(df$k), FUN=sd)$x),
+    stringsAsFactors=F)
+names(df) <- c("k", "ratio_perp", "sd_perp", "ratio_lk", "sd_lk")
+library(reshape)
+pd <- melt(df[,c("k","ratio_perp", "ratio_lk")], id.vars="k")
+pd2 <- melt(df[,c("k","sd_perp", "sd_lk")], id.vars="k")
+pd$sd <- pd2$value
+levels(pd$variable) <- c("Perplexity", "LogLikelihood")
+
+library(ggplot2)
+library(grid)
+
+p <- ggplot(pd, aes(x=k, y=value, linetype=variable))
+pq <- p + geom_line() + geom_point(aes(shape=variable), 
+        fill="white", shape=21, size=1.40) +
+    geom_errorbar(aes(ymax=value+sd, ymin=value-sd), width=4) +
+    scale_y_continuous("Ratio wrt worst value") +
+    scale_x_continuous("Number of topics", 
+        breaks=K) +
+    theme_bw() 
+pq
+```
