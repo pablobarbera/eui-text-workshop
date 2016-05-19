@@ -1,5 +1,5 @@
 
-# Methods workshop: Automated Text Analysis with R
+# Workshop: Automated Text Analysis with R
 
 ## Sponsored by 
 * [Quantitative Methods Working Group, European University Institute](https://sites.google.com/site/qmwgroup/)
@@ -26,6 +26,7 @@ You will need to bring a laptop to all sessions of the workshop. You will need [
 ### Instructions for using course materials on GitHub ###
 
 You have three options for downloading the course material found on this page:  
+
 1.  You can download the materials by clicking on each link.  
 
 2.  You can "clone" repository, using the buttons found to the right side of your browser window as you view this repository.  This is the button labelled "Clone in Desktop".  If you do not have a git client installed on your system, you will need to [get one here](https://git-scm.com/download/gui) and also to make sure that [git is installed](https://git-scm.com/downloads).  This is preferred, since you can refresh your clone as new content gets pushed to the course repository.  (And new material will get actively pushed to the course repository while this course takes place.)
