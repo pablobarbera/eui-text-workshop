@@ -40,7 +40,7 @@ You can also subscribe to the repository if you have [a GitHub account](https://
 
 | Time         | Topic                                                     |
 | ------------ | ---------------------------------------                   |
-| 10:00-10:30  | [Introduction to text analysis](01-intro/01-first-steps.Rmd)              | 
+| 10:00-10:30  | [Introduction to text analysis](01-intro/01-intro.Rmd)              | 
 | 10:30-11:00  | [Descriptive analysis, regular expressions](01-intro/02-descriptive.Rmd)              | 
 | 11:00-11:15  | [Dictionary methods](01-intro/03-dictionaries.Rmd)              | 
 | 11:15-12:00  | [Challenge I](01-intro/04-challenge1-solutions.Rmd)              | 
