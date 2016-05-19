@@ -1,0 +1,99 @@
+---
+title: "Challenge 2"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+#### Supervised machine learning
+
+Write code in R that help you answer the following questions. As in the previous challenge, we'll be working with a dataset that contains all the tweets sent by Donald Trump, Ted Cruz, Hillary Clinton, and Bernie Sanders during the 2016 primary election campaign.
+
+1. After reading a candidate, pick a candidate and create a dummy that indicates whether each tweet was sent by that candidate. We'll be trying to see if we can build a classifier to predict whether a tweet is coming from a given candidate.
+
+```{r}
+tweets <- read.csv('../datasets/candidate-tweets.csv', stringsAsFactors=F)
+tweets$trump <- ifelse(tweets$screen_name=="realDonaldTrump", 1, 0)
+tweets$text <- gsub('https?://t.co/[A-Za-z0-9]+', '', tweets$text)
+```
+
+2. Create a training and test set, with 80% and 20%, respectively.
+
+```{r}
+set.seed(123)
+training <- sample(1:nrow(tweets), floor(.80 * nrow(tweets)))
+test <- (1:nrow(tweets))[1:nrow(tweets) %in% training == FALSE]
+```
+
+3. Construct the DFM. You may want to experiment with different preprocessing techniques until you achieve better performance.
+
+```{r}
+library(quanteda)
+twcorpus <- corpus(tweets$text)
+twdfm <- dfm(twcorpus, ignoredFeatures=c(
+  stopwords("english"), "rt", "amp", "can", "u", "h", "t"), ngram=c(1,2))
+twdfm <- trim(twdfm, minDoc = 2)
+plot(twdfm, rot.per=0, scale=c(3.5, .75), max.words=100)
+```
+
+4. Now run the classifier. Then, compute the accuracy.
+
+```{r}
+library(glmnet)
+require(doMC)
+registerDoMC(cores=3)
+ridge <- cv.glmnet(twdfm[training,], tweets$trump[training], 
+	family="binomial", alpha=0, nfolds=5, parallel=TRUE,
+	type.measure="deviance")
+plot(ridge)
+## function to compute accuracy
+accuracy <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(sum(diag(tab))/sum(tab))
+}
+# function to compute precision
+precision <- function(ypred, y){
+	tab <- table(ypred, y)
+	return((tab[2,2])/(tab[2,1]+tab[2,2]))
+}
+# function to compute recall
+recall <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(tab[2,2]/(tab[1,2]+tab[2,2]))
+}
+# computing predicted values
+preds <- predict(ridge, twdfm[test,], type="response") > mean(tweets$trump[test])
+# confusion matrix
+table(preds, tweets$trump[test])
+# performance metrics
+accuracy(preds, tweets$trump[test])
+precision(preds, tweets$trump[test])
+recall(preds, tweets$trump[test])
+```
+
+5. Identify the features that better predict that tweets were sent by this candidate. What do you learn?
+```{r}
+# from the different values of lambda, let's pick the best one
+best.lambda <- which(ridge$lambda==ridge$lambda.min)
+beta <- ridge$glmnet.fit$beta[,best.lambda]
+head(beta)
+
+## identifying predictive features
+df <- data.frame(coef = as.numeric(beta),
+				word = names(beta), stringsAsFactors=F)
+
+df <- df[order(df$coef),]
+head(df[,c("coef", "word")], n=30)
+paste(df$word[1:30], collapse=", ")
+df <- df[order(df$coef, decreasing=TRUE),]
+head(df[,c("coef", "word")], n=30)
+paste(df$word[1:30], collapse=", ")
+```
+
+BONUS. Train wordscores in the Congress dataset we just used and then try to see how well it predicts the ideology of the presidential candidates
+
+```{r}
+
+```
+
+
