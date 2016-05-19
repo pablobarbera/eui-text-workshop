@@ -20,10 +20,9 @@ tweets <- read.csv("../datasets/EP-elections-tweets.csv", stringsAsFactors=F)
 tweets$impolite <- ifelse(tweets$polite=="polite", 0, 1)
 ```
 
-We'll do some cleaning as well -- substituting handles with @, and removing all URLs. Why? We want to provent overfitting.
+We'll do some cleaning as well -- substituting handles with @. Why? We want to provent overfitting.
 ```{r}
 tweets$text <- gsub('@[0-9_A-Za-z]+', '@', tweets$text)
-tweets$text <- gsub('"(http.*) |(http.*)$|\n', "", tweets$text)
 ```
 
 Create the dfm and trim it so that only tokens that appear in 2 or more tweets are included.
