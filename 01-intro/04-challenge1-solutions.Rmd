@@ -1,0 +1,123 @@
+---
+title: "Challenge 1"
+author: Pablo Barbera
+date: May 19, 2016
+output: html_document
+---
+
+#### Descriptive analyses of text
+
+Write code in R that help you answer the following questions. We'll be working with a dataset that contains all the tweets sent by Donald Trump, Ted Cruz, Hillary Clinton, and Bernie Sanders during the 2016 primary election campaign.
+
+1. Read the data. The name of the candidate is in the `screen_name` variable.  How many tweets has each of the candidate sent?
+
+```{r}
+library(quanteda)
+tweets <- read.csv('../datasets/candidate-tweets.csv', stringsAsFactors=F)
+table(tweets$screen_name)
+```
+
+2. How many tweets contain a hashtag? What are the most popular hashtags by candidate? Who are the most mentioned handles by candidate?
+```{r}
+length(grep('#', tweets$text))
+
+# find the N most common hashtags in a string vector
+getCommonHashtags <- function(text, n=20){
+    hashtags <- regmatches(text, gregexpr("#(\\d|\\w)+",text))
+    hashtags <- unlist(hashtags)
+    tab <- table(hashtags)
+    return(head(sort(tab, dec=TRUE), n=n))
+}
+
+# find the N most common handles in a string vector
+getCommonHandles <- function(text, n=20){
+    handles <- regmatches(text, gregexpr('@([0-9_A-Za-z]+)',text, perl=TRUE))
+    handles <- unlist(handles)
+    tab <- table(handles)
+    return(head(sort(tab, dec=TRUE), n=n))
+}
+
+
+getCommonHashtags(tweets$text[tweets$screen_name=="realDonaldTrump"])
+getCommonHashtags(tweets$text[tweets$screen_name=="tedcruz"])
+getCommonHashtags(tweets$text[tweets$screen_name=="HillaryClinton"])
+getCommonHashtags(tweets$text[tweets$screen_name=="BernieSanders"])
+
+getCommonHandles(tweets$text[tweets$screen_name=="realDonaldTrump"])
+getCommonHandles(tweets$text[tweets$screen_name=="tedcruz"])
+getCommonHandles(tweets$text[tweets$screen_name=="HillaryClinton"])
+getCommonHandles(tweets$text[tweets$screen_name=="BernieSanders"])
+
+```
+
+3. Pick two candidates and create a corpus object for each of them. Find the most common collocations for each. Compute their average readability scores.
+```{r}
+# collocations
+trump <- corpus(tweets$text[tweets$screen_name=="realDonaldTrump"])
+collocations(trump)[1:20,]
+clinton <- corpus(tweets$text[tweets$screen_name=="HillaryClinton"])
+collocations(clinton)[1:20,]
+# readability
+fk <- readability(trump, "Flesch.Kincaid")
+mean(fk)
+fk <- readability(clinton, "Flesch.Kincaid")
+mean(fk)
+
+```
+
+
+4. Now create a dfm object for each candidate and look at the most frequent features for each of them. Then compute the lexical diversity.
+```{r}
+trumpdfm <- dfm(trump, ignoredFeatures = c(stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can", "u"), ngrams=c(1,3))
+topfeatures(trumpdfm)
+plot(trumpdfm, rot.per=0, scale=c(3.5, .75), max.words=100)
+clintondfm <- dfm(clinton, ignoredFeatures = c(stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can", "u", "s", "h"), ngrams=c(1,3))
+topfeatures(clintondfm)
+plot(clintondfm, rot.per=0, scale=c(3.5, .75), max.words=100)
+
+```
+
+5. Compute the average sentiment score of the tweets sent by each candidate. Which candidate sent the most positive tweets? Is that what you expected? Find the most negative and most positive tweets for each candidate.
+
+```{r}
+tweets <- read.csv('../datasets/candidate-tweets.csv', stringsAsFactors=F)
+twcorpus <- corpus(tweets$text)
+# loading lexicon of positive and negative words (from Neal Caren)
+lexicon <- read.csv("../datasets/lexicon.csv", stringsAsFactors=F)
+pos.words <- lexicon$word[lexicon$polarity=="positive"]
+neg.words <- lexicon$word[lexicon$polarity=="negative"]
+
+# first we construct a dictionary object
+mydict <- dictionary(list(negative = neg.words,
+                          positive = pos.words))
+# apply it to our corpus
+sent <- dfm(twcorpus, dictionary = mydict)
+# and add it as a new variable
+tweets$score <- as.numeric(sent[,2]) - as.numeric(sent[,1])
+# loop over candidates
+candidates <- c("realDonaldTrump", "HillaryClinton", "tedcruz", "BernieSanders")
+
+for (cand in candidates){
+  message(cand, " -- average sentiment: ",
+      round(mean(tweets$score[tweets$screen_name==cand]), 4)
+    )
+}
+
+# most positive and negative tweets
+tweets <- tweets[order(tweets$score),]
+head(tweets)
+tail(tweets)
+
+```
+
+BONUS. Create a comparison plot using a single corpus object where the name of the candidates is a document variable. Check `?plot.dfm` for clues.
+
+```{r}
+tweets <- textfile('../datasets/candidate-tweets.csv', textField = 'text')
+twcorpus <- corpus(tweets)
+twcorpus <- subset(twcorpus, screen_name %in% c("BernieSanders", "HillaryClinton"))
+twdfm <- dfm(twcorpus, groups="screen_name", ignoredFeatures = c(stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can", "u", "s", "h"), ngrams=c(1,2))
+plot(twdfm, comparison=TRUE, rot.per=0, scale=c(3.5, .75), max.words=100)
+
+```
+
